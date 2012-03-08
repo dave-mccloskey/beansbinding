@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2006-2007 Sun Microsystems, Inc. All rights reserved. Use is
  * subject to license terms.
+ * Copyright (C) 2012 David McCloskey.
  */
 
 package org.jdesktop.swingbinding.impl;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.jdesktop.beansbinding.*;
+import org.jdesktop.swingbinding.SwingBindings;
 
 /**
  * @author sky
@@ -162,86 +164,95 @@ public abstract class ListBindingManager implements ObservableListListener {
     protected abstract void changed(int row);
 
     private final class ColumnDescriptionManager {
-        private final AbstractColumnBinding columnBinding;
-        private List<EntryWrapper> wrappers;
 
-        ColumnDescriptionManager(AbstractColumnBinding columnBinding) {
-            this.columnBinding = columnBinding;
-        }
+    private final AbstractColumnBinding columnBinding;
+    private List<EntryWrapper> wrappers;
 
-        public void startListening() {
-            int size = elements.size();
-            wrappers = new ArrayList<EntryWrapper>(size);
-            for (int i = 0; i < size; i++) {
-                wrappers.add(null);
-            }
-        }
-
-        public void stopListening() {
-            for (EntryWrapper wrapper : wrappers) {
-                if (wrapper != null) {
-                    wrapper.stopListening();
-                }
-            }
-
-            wrappers = null;
-        }
-
-        public void validateBinding(int row) {
-            if (wrappers.get(row) == null) {
-                EntryWrapper wrapper = new EntryWrapper(getElement(row));
-                wrappers.set(row, wrapper);
-            }
-        }
-
-        void wrapperChanged(EntryWrapper wrapper) {
-            int row = wrappers.indexOf(wrapper);
-            ListBindingManager.this.valueChanged(row, columnBinding.getColumn());
-        }
-
-        private void add(int index, int length) {
-            for (int i = 0; i < length; i++) {
-                wrappers.add(index, null);
-            }
-        }
-
-        private void remove(int index, int length) {
-            while (length-- > 0) {
-                EntryWrapper wrapper = wrappers.remove(index);
-                if (wrapper != null) {
-                    wrapper.stopListening();
-                }
-            }
-        }
-
-        private void replaced(int index) {
-            EntryWrapper wrapper = wrappers.get(index);
-            if (wrapper != null) {
-                wrapper.stopListening();
-            }
-            wrappers.set(index, null);
-        }
-
-        private final class EntryWrapper implements PropertyStateListener {
-            private Object source;
-
-            EntryWrapper(Object source) {
-                this.source = source;
-                columnBinding.getSourceProperty().addPropertyStateListener(source, this);
-            }
-            
-            public void stopListening() {
-                columnBinding.getSourceProperty().removePropertyStateListener(source, this);
-                source = null;
-            }
-
-            public void propertyStateChanged(PropertyStateEvent pse) {
-                if (pse.getValueChanged()) {
-                    wrapperChanged(this);
-                }
-            }
-        }
+    ColumnDescriptionManager(AbstractColumnBinding columnBinding) {
+      this.columnBinding = columnBinding;
     }
+
+    public void startListening() {
+      int size = elements.size();
+      wrappers = new ArrayList<EntryWrapper>(size);
+      for (int i = 0; i < size; i++) {
+        wrappers.add(null);
+      }
+    }
+
+    public void stopListening() {
+      for (EntryWrapper wrapper : wrappers) {
+        if (wrapper != null) {
+          wrapper.stopListening();
+        }
+      }
+
+      wrappers = null;
+    }
+
+    public void validateBinding(int row) {
+      if (wrappers.get(row) == null) {
+        EntryWrapper wrapper = new EntryWrapper(getElement(row));
+        wrappers.set(row, wrapper);
+      }
+    }
+
+    void wrapperChanged(EntryWrapper wrapper) {
+      int row = wrappers.indexOf(wrapper);
+      ListBindingManager.this.valueChanged(row, columnBinding.getColumn());
+    }
+
+    private void add(int index, int length) {
+      for (int i = 0; i < length; i++) {
+        wrappers.add(index, null);
+      }
+    }
+
+    private void remove(int index, int length) {
+      while (length-- > 0) {
+        EntryWrapper wrapper = wrappers.remove(index);
+        if (wrapper != null) {
+          wrapper.stopListening();
+        }
+      }
+    }
+
+    private void replaced(int index) {
+      EntryWrapper wrapper = wrappers.get(index);
+      if (wrapper != null) {
+        wrapper.stopListening();
+      }
+      wrappers.set(index, null);
+    }
+
+    private final class EntryWrapper implements PropertyStateListener {
+
+      private Object source;
+
+      EntryWrapper(Object source) {
+        this.source = source;
+        columnBinding.getSourceProperty().addPropertyStateListener(source, this);
+      }
+
+      public void stopListening() {
+        columnBinding.getSourceProperty().removePropertyStateListener(source,
+                this);
+        source = null;
+      }
+
+      public void propertyStateChanged(final PropertyStateEvent pse) {
+        if (pse.getValueChanged()) {
+          SwingBindings.invokeAndWaitInEDT(new Runnable() {
+
+            @Override
+            public void run() {
+              ColumnDescriptionManager.this.wrapperChanged(EntryWrapper.this);
+            }
+          });
+        }
+      }
+    }
+  }
 
     private final class ReusableBinding extends Binding {
         public ReusableBinding(AbstractColumnBinding base) {

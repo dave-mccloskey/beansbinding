@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2007 Sun Microsystems, Inc. All rights reserved. Use is
  * subject to license terms.
+ * Copyright (C) 2012 David McCloskey.
  */
 
 package org.jdesktop.swingbinding;
@@ -365,5 +366,24 @@ public class SwingBindings {
     public static <E, SS, TS> JComboBoxBinding<E, SS, TS> createJComboBoxBinding(AutoBinding.UpdateStrategy strategy, SS sourceObject, Property<SS, List<E>> sourceListProperty, TS targetObject, Property<TS, ? extends JComboBox> targetJComboBoxProperty, String name) {
         return new JComboBoxBinding<E, SS, TS>(strategy, sourceObject, sourceListProperty, targetObject, targetJComboBoxProperty, name);
     }
-    
+
+
+
+    /**
+     * Invoke and wait for a runnable on the EDT.  This method handles the
+     * situation when the current thread is the EDT.
+     * @param runnable the runnable.
+     */
+  public static void invokeAndWaitInEDT(Runnable runnable) {
+    if (SwingUtilities.isEventDispatchThread()) {
+      runnable.run();
+    } else {
+      try {
+        SwingUtilities.invokeAndWait(runnable);
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }
+    }
+
+  }
 }

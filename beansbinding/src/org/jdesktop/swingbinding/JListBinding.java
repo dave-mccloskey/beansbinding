@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2007 Sun Microsystems, Inc. All rights reserved. Use is
  * subject to license terms.
+ * Copyright (C) 2012 David McCloskey.
  */
 
 package org.jdesktop.swingbinding;
@@ -363,41 +364,47 @@ public final class JListBinding<E, SS, TS> extends AutoBinding<SS, List<E>, TS, 
 
     }
 
-    private class Handler implements PropertyStateListener {
-        public void propertyStateChanged(PropertyStateEvent pse) {
-            if (!pse.getValueChanged()) {
-                return;
+  private class Handler implements PropertyStateListener {
+
+    public void propertyStateChanged(final PropertyStateEvent pse) {
+      if (!pse.getValueChanged()) {
+        return;
+      }
+      SwingBindings.invokeAndWaitInEDT(new Runnable() {
+
+        @Override
+        public void run() {
+          if (pse.getSourceProperty() == listP) {
+            cleanupForLast();
+
+            boolean wasAccessible = isListAccessible(pse.getOldValue());
+            boolean isAccessible = isListAccessible(pse.getNewValue());
+
+            if (wasAccessible != isAccessible) {
+              elementsP.setAccessible(isAccessible);
+            } else if (elementsP.isAccessible()) {
+              elementsP.setValueAndIgnore(null, null);
+            }
+          } else {
+            if (((ElementsProperty.ElementsPropertyStateEvent) pse).shouldIgnore()) {
+              return;
             }
 
-            if (pse.getSourceProperty() == listP) {
-                cleanupForLast();
-                
-                boolean wasAccessible = isListAccessible(pse.getOldValue());
-                boolean isAccessible = isListAccessible(pse.getNewValue());
-
-                if (wasAccessible != isAccessible) {
-                    elementsP.setAccessible(isAccessible);
-                } else if (elementsP.isAccessible()) {
-                    elementsP.setValueAndIgnore(null, null);
-                }
+            if (list == null) {
+              list = listP.getValue(getTargetObject());
+              resetListSelection();
+              model = new BindingListModel();
+              list.setModel(model);
             } else {
-                if (((ElementsProperty.ElementsPropertyStateEvent)pse).shouldIgnore()) {
-                    return;
-                }
-
-                if (list == null) {
-                    list = listP.getValue(getTargetObject());
-                    resetListSelection();
-                    model = new BindingListModel();
-                    list.setModel(model);
-                } else {
-                    resetListSelection();
-                }
-
-                model.setElements((List)pse.getNewValue(), true);
+              resetListSelection();
             }
+
+            model.setElements((List) pse.getNewValue(), true);
+          }
         }
+      });
     }
+  }
 
     private void resetListSelection() {
         ListSelectionModel selectionModel = list.getSelectionModel();

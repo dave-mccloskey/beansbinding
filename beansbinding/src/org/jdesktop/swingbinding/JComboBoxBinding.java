@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2007 Sun Microsystems, Inc. All rights reserved. Use is
  * subject to license terms.
+ * Copyright (C) 2012 David McCloskey.
  */
 
 package org.jdesktop.swingbinding;
@@ -228,39 +229,46 @@ public final class JComboBoxBinding<E, SS, TS> extends AutoBinding<SS, List<E>, 
         model = null;
     }
 
-    private class Handler implements PropertyStateListener {
-        public void propertyStateChanged(PropertyStateEvent pse) {
-            if (!pse.getValueChanged()) {
-                return;
+  private class Handler implements PropertyStateListener {
+
+    public void propertyStateChanged(final PropertyStateEvent pse) {
+      if (!pse.getValueChanged()) {
+        return;
+      }
+
+      SwingBindings.invokeAndWaitInEDT(new Runnable() {
+
+        @Override
+        public void run() {
+          if (pse.getSourceProperty() == comboP) {
+            cleanupForLast();
+
+            boolean wasAccessible = isComboAccessible(pse.getOldValue());
+            boolean isAccessible = isComboAccessible(pse.getNewValue());
+
+            if (wasAccessible != isAccessible) {
+              elementsP.setAccessible(isAccessible);
+            } else if (elementsP.isAccessible()) {
+              elementsP.setValueAndIgnore(null, null);
+            }
+          } else {
+            if (((ElementsProperty.ElementsPropertyStateEvent) pse).shouldIgnore()) {
+              return;
             }
 
-            if (pse.getSourceProperty() == comboP) {
-                cleanupForLast();
-                
-                boolean wasAccessible = isComboAccessible(pse.getOldValue());
-                boolean isAccessible = isComboAccessible(pse.getNewValue());
-
-                if (wasAccessible != isAccessible) {
-                    elementsP.setAccessible(isAccessible);
-                } else if (elementsP.isAccessible()) {
-                    elementsP.setValueAndIgnore(null, null);
-                }
-            } else {
-                if (((ElementsProperty.ElementsPropertyStateEvent)pse).shouldIgnore()) {
-                    return;
-                }
-
-                if (combo == null) {
-                    combo = comboP.getValue(getTargetObject());
-                    combo.setSelectedItem(null);
-                    model = new BindingComboBoxModel();
-                    combo.setModel(model);
-                }
-
-                model.updateElements((List)pse.getNewValue(), combo.isEditable());
+            if (combo == null) {
+              combo = comboP.getValue(getTargetObject());
+              combo.setSelectedItem(null);
+              model = new BindingComboBoxModel();
+              combo.setModel(model);
             }
+
+            model.updateElements((List) pse.getNewValue(), combo.isEditable());
+          }
         }
+      });
     }
+  }
 
     private final class BindingComboBoxModel extends ListBindingManager implements ComboBoxModel  {
         private final List<ListDataListener> listeners;

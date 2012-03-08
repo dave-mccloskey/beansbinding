@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2007 Sun Microsystems, Inc. All rights reserved. Use is
  * subject to license terms.
+ * Copyright (C) 2012 David McCloskey.
  */
 
 package org.jdesktop.swingbinding;
@@ -659,38 +660,44 @@ public final class JTableBinding<E, SS, TS> extends AutoBinding<SS, List<E>, TS,
         }
     }
 
-    private class Handler implements PropertyStateListener {
-        public void propertyStateChanged(PropertyStateEvent pse) {
-            if (!pse.getValueChanged()) {
-                return;
+  private class Handler implements PropertyStateListener {
+
+    public void propertyStateChanged(final PropertyStateEvent pse) {
+      if (!pse.getValueChanged()) {
+        return;
+      }
+
+      SwingBindings.invokeAndWaitInEDT(new Runnable() {
+
+        public void run() {
+          if (pse.getSourceProperty() == tableP) {
+            cleanupForLast();
+
+            boolean wasAccessible = isTableAccessible(pse.getOldValue());
+            boolean isAccessible = isTableAccessible(pse.getNewValue());
+
+            if (wasAccessible != isAccessible) {
+              elementsP.setAccessible(isAccessible);
+            } else if (elementsP.isAccessible()) {
+              elementsP.setValueAndIgnore(null, null);
+            }
+          } else {
+            if (((ElementsProperty.ElementsPropertyStateEvent) pse).shouldIgnore()) {
+              return;
             }
 
-            if (pse.getSourceProperty() == tableP) {
-                cleanupForLast();
-                
-                boolean wasAccessible = isTableAccessible(pse.getOldValue());
-                boolean isAccessible = isTableAccessible(pse.getNewValue());
-
-                if (wasAccessible != isAccessible) {
-                    elementsP.setAccessible(isAccessible);
-                } else if (elementsP.isAccessible()) {
-                    elementsP.setValueAndIgnore(null, null);
-                }
-            } else {
-                if (((ElementsProperty.ElementsPropertyStateEvent)pse).shouldIgnore()) {
-                    return;
-                }
-
-                if (table == null) {
-                    table = tableP.getValue(getTargetObject());
-                    model = new BindingTableModel();
-                    table.setModel(model);
-                }
-
-                model.setElements((List)pse.getNewValue(), true);
+            if (table == null) {
+              table = tableP.getValue(getTargetObject());
+              model = new BindingTableModel();
+              table.setModel(model);
             }
+
+            model.setElements((List) pse.getNewValue(), true);
+          }
         }
+      });
     }
+  }
 
     private final class BindingTableModel extends ListBindingManager implements TableModel  {
         private final List<TableModelListener> listeners;
